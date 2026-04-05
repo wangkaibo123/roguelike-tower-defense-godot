@@ -97,8 +97,8 @@ func _draw_normal() -> void:
 			var t: float = float(i) / float(_trail_positions.size() - 1)
 			var col := Color(1.0, 1.0, 0.6, t * 0.6)
 			var width: float = lerpf(1.0, 3.0, t)
-			var from: Vector2 = _trail_positions[i] - global_position
-			var to: Vector2   = _trail_positions[i + 1] - global_position
+			var from: Vector2 = to_local(_trail_positions[i])
+			var to: Vector2   = to_local(_trail_positions[i + 1])
 			draw_line(from, to, col, width)
 
 	# Bright core.

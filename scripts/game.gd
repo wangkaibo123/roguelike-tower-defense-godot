@@ -32,6 +32,7 @@ var _spawn_queue: Array[Dictionary] = []
 var _spawn_timer: float = 0.0
 var _burst_counter: int = 0
 var _between_bursts: bool = false
+var _waiting_for_next_wave: bool = false
 
 
 ## Returns the current viewport size (adapts to window resize).
@@ -89,13 +90,14 @@ func _process(delta: float) -> void:
 
 	if _spawn_queue.size() > 0:
 		_process_spawning(delta)
-	elif enemies_alive <= 0 and enemies_to_spawn <= 0:
+	elif enemies_alive <= 0 and enemies_to_spawn <= 0 and not _waiting_for_next_wave:
 		_on_wave_complete()
 
 
 # --- Wave system ---
 
 func _start_next_wave() -> void:
+	_waiting_for_next_wave = false
 	wave_number += 1
 	var composition := _get_wave_composition(wave_number)
 
@@ -214,6 +216,7 @@ func _on_enemy_reached_tower(dmg: int) -> void:
 
 
 func _on_wave_complete() -> void:
+	_waiting_for_next_wave = true
 	game_state = GameState.UPGRADING
 	await get_tree().create_timer(0.5).timeout
 	if game_state == GameState.UPGRADING:
