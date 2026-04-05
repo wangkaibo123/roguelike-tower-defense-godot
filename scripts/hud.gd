@@ -1,6 +1,6 @@
 extends CanvasLayer
-## In-game HUD for roguelike tower defense. Portrait mode (480x854).
-## Builds all UI nodes programmatically in _ready().
+## In-game HUD for roguelike tower defense.
+## Adapts to any viewport size using anchors and dynamic layout.
 
 signal restart_requested()
 signal pause_requested()
@@ -15,6 +15,11 @@ var score_label: Label
 var wave_announce_label: Label
 var game_over_overlay: ColorRect
 
+# Layout containers for resize
+var _top_bar: ColorRect
+var _hp_panel: ColorRect
+var _bottom_bar: ColorRect
+
 # --- Colors / Style constants ---
 const COLOR_CRIMSON_DARK := Color(0.15, 0.02, 0.04)
 const COLOR_CRIMSON := Color(0.55, 0.08, 0.12)
@@ -24,8 +29,9 @@ const COLOR_TEXT := Color.WHITE
 const COLOR_SHADOW := Color(0.0, 0.0, 0.0, 0.6)
 const COLOR_PANEL_BG := Color(0.0, 0.0, 0.0, 0.45)
 
-const SCREEN_W := 480
-const SCREEN_H := 854
+
+func _get_vp_size() -> Vector2:
+	return get_viewport().get_visible_rect().size
 
 
 func _ready() -> void:
@@ -34,6 +40,37 @@ func _ready() -> void:
 	_build_health_bar()
 	_build_score_area()
 	_build_wave_announcement()
+	get_tree().root.size_changed.connect(_on_resized)
+	# Defer first layout so viewport size is correct
+	call_deferred("_on_resized")
+
+
+func _on_resized() -> void:
+	var vp := _get_vp_size()
+	var sw := vp.x
+	var sh := vp.y
+
+	# Top bar
+	_top_bar.size = Vector2(sw, 48)
+	timer_label.position = Vector2(sw / 2.0 - 60, 8)
+	pause_button.position = Vector2(sw - 52, 5)
+
+	# Bottom bar
+	_bottom_bar.size = Vector2(sw, 40)
+	_bottom_bar.position = Vector2(0, sh - 40)
+	score_label.position = Vector2(0, sh - 36)
+	score_label.size = Vector2(sw, 32)
+
+	# Wave announce
+	wave_announce_label.position = Vector2(0, sh / 2.0 - 40)
+	wave_announce_label.size = Vector2(sw, 80)
+
+	# Game over overlay
+	if game_over_overlay and is_instance_valid(game_over_overlay):
+		game_over_overlay.size = vp
+		var vbox := game_over_overlay.get_child(0)
+		if vbox:
+			vbox.size = vp
 
 
 # ============================================================
@@ -41,48 +78,42 @@ func _ready() -> void:
 # ============================================================
 
 func _build_top_area() -> void:
-	# --- Top bar background ---
-	var top_bg := ColorRect.new()
-	top_bg.color = COLOR_PANEL_BG
-	top_bg.custom_minimum_size = Vector2(SCREEN_W, 48)
-	top_bg.size = Vector2(SCREEN_W, 48)
-	top_bg.position = Vector2.ZERO
-	add_child(top_bg)
+	_top_bar = ColorRect.new()
+	_top_bar.color = COLOR_PANEL_BG
+	_top_bar.custom_minimum_size = Vector2(0, 48)
+	_top_bar.size = Vector2(480, 48)
+	_top_bar.position = Vector2.ZERO
+	add_child(_top_bar)
 
-	# --- Wave label (top-left) ---
 	wave_label = _make_label("Wave 1", 14)
 	wave_label.position = Vector2(12, 10)
 	wave_label.size = Vector2(120, 28)
 	add_child(wave_label)
 
-	# --- Timer label (top-center) ---
 	timer_label = _make_label("00:00", 18)
 	timer_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	timer_label.position = Vector2(SCREEN_W / 2.0 - 60, 8)
+	timer_label.position = Vector2(180, 8)
 	timer_label.size = Vector2(120, 32)
 	add_child(timer_label)
 
-	# --- Pause button (top-right) ---
 	pause_button = Button.new()
 	pause_button.text = "II"
 	pause_button.custom_minimum_size = Vector2(44, 38)
 	pause_button.size = Vector2(44, 38)
-	pause_button.position = Vector2(SCREEN_W - 52, 5)
+	pause_button.position = Vector2(428, 5)
 	_style_button(pause_button)
 	pause_button.pressed.connect(_on_pause_pressed)
 	add_child(pause_button)
 
 
 func _build_health_bar() -> void:
-	# --- Container panel ---
-	var panel := ColorRect.new()
-	panel.color = COLOR_PANEL_BG
-	panel.custom_minimum_size = Vector2(160, 46)
-	panel.size = Vector2(160, 46)
-	panel.position = Vector2(8, 58)
-	add_child(panel)
+	_hp_panel = ColorRect.new()
+	_hp_panel.color = COLOR_PANEL_BG
+	_hp_panel.custom_minimum_size = Vector2(160, 46)
+	_hp_panel.size = Vector2(160, 46)
+	_hp_panel.position = Vector2(8, 58)
+	add_child(_hp_panel)
 
-	# --- ProgressBar ---
 	health_bar = ProgressBar.new()
 	health_bar.min_value = 0
 	health_bar.max_value = 100
@@ -92,26 +123,18 @@ func _build_health_bar() -> void:
 	health_bar.size = Vector2(144, 18)
 	health_bar.position = Vector2(16, 62)
 
-	# Style the bar with a flat fill and background
 	var bg_style := StyleBoxFlat.new()
 	bg_style.bg_color = Color(0.15, 0.15, 0.15, 0.9)
-	bg_style.corner_radius_top_left = 4
-	bg_style.corner_radius_top_right = 4
-	bg_style.corner_radius_bottom_left = 4
-	bg_style.corner_radius_bottom_right = 4
+	bg_style.set_corner_radius_all(4)
 	health_bar.add_theme_stylebox_override("background", bg_style)
 
 	var fill_style := StyleBoxFlat.new()
 	fill_style.bg_color = COLOR_HEALTH_GREEN
-	fill_style.corner_radius_top_left = 4
-	fill_style.corner_radius_top_right = 4
-	fill_style.corner_radius_bottom_left = 4
-	fill_style.corner_radius_bottom_right = 4
+	fill_style.set_corner_radius_all(4)
 	health_bar.add_theme_stylebox_override("fill", fill_style)
 
 	add_child(health_bar)
 
-	# --- HP text ---
 	health_label = _make_label("HP: 100/100", 12)
 	health_label.position = Vector2(16, 82)
 	health_label.size = Vector2(144, 20)
@@ -119,17 +142,17 @@ func _build_health_bar() -> void:
 
 
 func _build_score_area() -> void:
-	var panel := ColorRect.new()
-	panel.color = COLOR_PANEL_BG
-	panel.custom_minimum_size = Vector2(SCREEN_W, 40)
-	panel.size = Vector2(SCREEN_W, 40)
-	panel.position = Vector2(0, SCREEN_H - 40)
-	add_child(panel)
+	_bottom_bar = ColorRect.new()
+	_bottom_bar.color = COLOR_PANEL_BG
+	_bottom_bar.custom_minimum_size = Vector2(0, 40)
+	_bottom_bar.size = Vector2(480, 40)
+	_bottom_bar.position = Vector2(0, 814)
+	add_child(_bottom_bar)
 
 	score_label = _make_label("Score: 0", 16)
 	score_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	score_label.position = Vector2(0, SCREEN_H - 36)
-	score_label.size = Vector2(SCREEN_W, 32)
+	score_label.position = Vector2(0, 818)
+	score_label.size = Vector2(480, 32)
 	add_child(score_label)
 
 
@@ -138,8 +161,8 @@ func _build_wave_announcement() -> void:
 	wave_announce_label.text = ""
 	wave_announce_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	wave_announce_label.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
-	wave_announce_label.position = Vector2(0, SCREEN_H / 2.0 - 40)
-	wave_announce_label.size = Vector2(SCREEN_W, 80)
+	wave_announce_label.position = Vector2(0, 387)
+	wave_announce_label.size = Vector2(480, 80)
 	wave_announce_label.add_theme_font_size_override("font_size", 36)
 	wave_announce_label.add_theme_color_override("font_color", COLOR_TEXT)
 	wave_announce_label.add_theme_color_override("font_shadow_color", COLOR_SHADOW)
@@ -159,7 +182,6 @@ func update_health(current: int, max_val: int) -> void:
 	health_bar.value = current
 	health_label.text = "HP: %d/%d" % [current, max_val]
 
-	# Interpolate bar color from red to green based on ratio
 	var ratio := clampf(float(current) / float(max_val), 0.0, 1.0)
 	var bar_color := COLOR_HEALTH_RED.lerp(COLOR_HEALTH_GREEN, ratio)
 	var fill_style: StyleBoxFlat = health_bar.get_theme_stylebox("fill").duplicate()
@@ -178,8 +200,8 @@ func update_wave(wave_num: int) -> void:
 	wave_label.text = "Wave %d" % wave_num
 
 
-func update_score(score: int) -> void:
-	score_label.text = "Score: %d" % score
+func update_score(new_score: int) -> void:
+	score_label.text = "Score: %d" % new_score
 
 
 func show_wave_announcement(wave_num: int) -> void:
@@ -187,11 +209,8 @@ func show_wave_announcement(wave_num: int) -> void:
 	wave_announce_label.modulate.a = 0.0
 
 	var tween := create_tween()
-	# Fade in
 	tween.tween_property(wave_announce_label, "modulate:a", 1.0, 0.35).set_ease(Tween.EASE_OUT)
-	# Hold
 	tween.tween_interval(1.2)
-	# Fade out
 	tween.tween_property(wave_announce_label, "modulate:a", 0.0, 0.5).set_ease(Tween.EASE_IN)
 
 
@@ -199,27 +218,25 @@ func show_game_over(final_score: int, wave: int) -> void:
 	if game_over_overlay and is_instance_valid(game_over_overlay):
 		game_over_overlay.queue_free()
 
-	# --- Dark overlay ---
+	var vp := _get_vp_size()
+
 	game_over_overlay = ColorRect.new()
 	game_over_overlay.color = Color(0.05, 0.0, 0.02, 0.82)
 	game_over_overlay.position = Vector2.ZERO
-	game_over_overlay.size = Vector2(SCREEN_W, SCREEN_H)
+	game_over_overlay.size = vp
 	game_over_overlay.z_index = 50
 	add_child(game_over_overlay)
 
-	# --- VBoxContainer centered ---
 	var vbox := VBoxContainer.new()
 	vbox.alignment = BoxContainer.ALIGNMENT_CENTER
-	vbox.size = Vector2(SCREEN_W, SCREEN_H)
+	vbox.size = vp
 	vbox.position = Vector2.ZERO
 	game_over_overlay.add_child(vbox)
 
-	# Spacer top
 	var spacer_top := Control.new()
-	spacer_top.custom_minimum_size = Vector2(0, SCREEN_H * 0.28)
+	spacer_top.custom_minimum_size = Vector2(0, vp.y * 0.28)
 	vbox.add_child(spacer_top)
 
-	# "GAME OVER" title
 	var title := Label.new()
 	title.text = "GAME OVER"
 	title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
@@ -230,12 +247,10 @@ func show_game_over(final_score: int, wave: int) -> void:
 	title.add_theme_constant_override("shadow_offset_y", 3)
 	vbox.add_child(title)
 
-	# Spacer
 	var gap1 := Control.new()
 	gap1.custom_minimum_size = Vector2(0, 24)
 	vbox.add_child(gap1)
 
-	# Final score
 	var score_lbl := Label.new()
 	score_lbl.text = "Final Score: %d" % final_score
 	score_lbl.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
@@ -246,7 +261,6 @@ func show_game_over(final_score: int, wave: int) -> void:
 	score_lbl.add_theme_constant_override("shadow_offset_y", 2)
 	vbox.add_child(score_lbl)
 
-	# Wave reached
 	var wave_lbl := Label.new()
 	wave_lbl.text = "Wave Reached: %d" % wave
 	wave_lbl.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
@@ -257,12 +271,10 @@ func show_game_over(final_score: int, wave: int) -> void:
 	wave_lbl.add_theme_constant_override("shadow_offset_y", 2)
 	vbox.add_child(wave_lbl)
 
-	# Spacer
 	var gap2 := Control.new()
 	gap2.custom_minimum_size = Vector2(0, 36)
 	vbox.add_child(gap2)
 
-	# Restart button (centered via HBox)
 	var hbox := HBoxContainer.new()
 	hbox.alignment = BoxContainer.ALIGNMENT_CENTER
 	vbox.add_child(hbox)
@@ -296,10 +308,7 @@ func _style_button(btn: Button, font_size: int = 16) -> void:
 
 	var normal := StyleBoxFlat.new()
 	normal.bg_color = COLOR_CRIMSON
-	normal.corner_radius_top_left = 6
-	normal.corner_radius_top_right = 6
-	normal.corner_radius_bottom_left = 6
-	normal.corner_radius_bottom_right = 6
+	normal.set_corner_radius_all(6)
 	normal.content_margin_left = 8
 	normal.content_margin_right = 8
 	normal.content_margin_top = 4
@@ -310,9 +319,9 @@ func _style_button(btn: Button, font_size: int = 16) -> void:
 	hover.bg_color = COLOR_CRIMSON.lightened(0.15)
 	btn.add_theme_stylebox_override("hover", hover)
 
-	var pressed := normal.duplicate()
-	pressed.bg_color = COLOR_CRIMSON.darkened(0.2)
-	btn.add_theme_stylebox_override("pressed", pressed)
+	var pressed_style := normal.duplicate()
+	pressed_style.bg_color = COLOR_CRIMSON.darkened(0.2)
+	btn.add_theme_stylebox_override("pressed", pressed_style)
 
 
 # ============================================================

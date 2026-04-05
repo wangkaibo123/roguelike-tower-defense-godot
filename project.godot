@@ -15,8 +15,9 @@ config/features=PackedStringArray("4.4", "GL Compatibility")
 window/size/viewport_width=480
 window/size/viewport_height=854
 window/size/mode=0
+window/size/resizable=true
 window/stretch/mode="canvas_items"
-window/stretch/aspect="keep"
+window/stretch/aspect="expand"
 window/handheld/orientation=1
 
 [input]

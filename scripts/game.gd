@@ -6,10 +6,7 @@ signal game_over_triggered
 
 enum GameState { PLAYING, UPGRADING, GAME_OVER }
 
-const SCREEN_SIZE := Vector2(480, 854)
-const CENTER := SCREEN_SIZE * 0.5
 const BG_COLOR := Color("#8B1A1A")
-
 const ENEMY_SCENE: PackedScene = preload("res://scenes/enemy.tscn")
 
 # Spawn timing
@@ -31,33 +28,36 @@ var enemies_to_spawn: int = 0
 var game_time: float = 0.0
 var score: int = 0
 
-# Internal spawn bookkeeping
 var _spawn_queue: Array[Dictionary] = []
 var _spawn_timer: float = 0.0
 var _burst_counter: int = 0
 var _between_bursts: bool = false
 
 
+## Returns the current viewport size (adapts to window resize).
+func _get_screen_size() -> Vector2:
+	return get_viewport_rect().size
+
+
+## Returns the center of the current viewport.
+func _get_center() -> Vector2:
+	return _get_screen_size() * 0.5
+
+
 func _ready() -> void:
 	process_mode = Node.PROCESS_MODE_ALWAYS
 
-	background.color = BG_COLOR
-	background.size = SCREEN_SIZE
-	background.position = Vector2.ZERO
+	# Size background to viewport and connect resize
+	_update_layout()
+	get_tree().root.size_changed.connect(_update_layout)
 
 	upgrade_ui.visible = false
 
-	# Connect tower signals
 	tower.health_changed.connect(_on_tower_health_changed)
 	tower.died.connect(_on_tower_destroyed)
-
-	# Connect upgrade UI
 	upgrade_ui.upgrade_selected.connect(_on_upgrade_selected)
-
-	# Connect HUD restart
 	hud.restart_requested.connect(_on_restart)
 
-	# Initial HUD state
 	hud.update_health(tower.health, tower.max_health)
 	hud.update_wave(0)
 	hud.update_score(0)
@@ -65,6 +65,19 @@ func _ready() -> void:
 
 	await get_tree().create_timer(1.0).timeout
 	_start_next_wave()
+
+
+func _update_layout() -> void:
+	var screen := _get_screen_size()
+	var center := _get_center()
+
+	# Resize background to fill viewport
+	background.color = BG_COLOR
+	background.position = Vector2.ZERO
+	background.size = screen
+
+	# Reposition tower to center
+	tower.position = center
 
 
 func _process(delta: float) -> void:
@@ -160,18 +173,15 @@ func _spawn_enemy(data: Dictionary) -> void:
 
 	enemy.global_position = _random_edge_position()
 
-	# Use the enemy's setup method
 	var etype: String = data.get("type", "triangle")
 	var slow_mult: float = tower.slow_factor if tower else 1.0
-	enemy.setup(etype, CENTER, slow_mult)
+	enemy.setup(etype, _get_center(), slow_mult)
 
-	# Scale HP with wave number (10% per wave after wave 1)
-	var wave: int = data.get("wave", 1)
-	var hp_scale: float = 1.0 + (wave - 1) * 0.1
+	var w: int = data.get("wave", 1)
+	var hp_scale: float = 1.0 + (w - 1) * 0.1
 	enemy.max_health *= hp_scale
 	enemy.health = enemy.max_health
 
-	# Connect signals
 	enemy.died.connect(_on_enemy_died)
 	enemy.reached_tower.connect(_on_enemy_reached_tower)
 
@@ -180,13 +190,14 @@ func _spawn_enemy(data: Dictionary) -> void:
 
 func _random_edge_position() -> Vector2:
 	var margin := 40.0
+	var screen := _get_screen_size()
 	var side := randi() % 4
 	match side:
-		0: return Vector2(randf_range(0, SCREEN_SIZE.x), -margin)
-		1: return Vector2(randf_range(0, SCREEN_SIZE.x), SCREEN_SIZE.y + margin)
-		2: return Vector2(-margin, randf_range(0, SCREEN_SIZE.y))
-		3: return Vector2(SCREEN_SIZE.x + margin, randf_range(0, SCREEN_SIZE.y))
-	return Vector2(-margin, SCREEN_SIZE.y * 0.5)
+		0: return Vector2(randf_range(0, screen.x), -margin)
+		1: return Vector2(randf_range(0, screen.x), screen.y + margin)
+		2: return Vector2(-margin, randf_range(0, screen.y))
+		3: return Vector2(screen.x + margin, randf_range(0, screen.y))
+	return Vector2(-margin, screen.y * 0.5)
 
 
 # --- Signal handlers ---
@@ -204,7 +215,6 @@ func _on_enemy_reached_tower(dmg: int) -> void:
 
 func _on_wave_complete() -> void:
 	game_state = GameState.UPGRADING
-	# Small delay before showing upgrades
 	await get_tree().create_timer(0.5).timeout
 	if game_state == GameState.UPGRADING:
 		upgrade_ui.show_upgrades()
