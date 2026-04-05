@@ -53,7 +53,8 @@ func _draw() -> void:
 
 
 func _make_particle() -> Dictionary:
-	var sides := [3, 4, 4, 3, 3][randi() % 5]
+	var side_options: Array[int] = [3, 4, 4, 3, 3]
+	var sides: int = side_options[randi() % side_options.size()]
 	return {
 		"pos": Vector2(randf_range(0, SCREEN_SIZE.x), randf_range(0, SCREEN_SIZE.y)),
 		"vel": Vector2(randf_range(-12, 12), randf_range(-8, 8)),

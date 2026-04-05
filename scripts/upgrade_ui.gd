@@ -166,7 +166,7 @@ func show_upgrades() -> void:
 	visible = true
 
 
-func hide() -> void:
+func hide_ui() -> void:
 	visible = false
 
 
@@ -294,4 +294,4 @@ func _create_card(upgrade_data: Dictionary, index: int) -> Button:
 
 func _on_card_pressed(upgrade_data: Dictionary) -> void:
 	upgrade_selected.emit(upgrade_data)
-	hide()
+	hide_ui()
